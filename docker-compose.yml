@@ -1,0 +1,48 @@
+version: '3.7'
+
+services:
+  https-portal:
+    image: steveltn/https-portal:1
+    container_name: https-reverse-proxy
+    ports:
+      - '80:80'
+      - '443:443'
+    networks:
+      - production
+    restart: always
+    environment:
+      STAGE: 'production'
+      DOMAINS: ${DOMAINS}
+    volumes:
+    - ./certs:/var/lib/https-portal
+
+  nginx:
+    build: ./nginx
+    container_name: www
+    ports:
+      - '8080:80'
+    networks:
+      - production
+    restart: always
+    volumes:
+      - ./nginx/www:/usr/share/nginx/html
+
+  mineos:
+    build: ./minecraft/mineos
+    container_name: mineos
+    ports:
+      - '8443:8443'
+      - '25565-25570:25565-25570'
+    networks:
+      - production
+    restart: always
+    environment:
+      USER_NAME: ${USERNAME}
+      USER_PASSWORD: ${USERPASSWORD}
+      TZ: Asia/Tokyo
+    volumes:
+      - ./minecraft/games:/var/games/minecraft
+
+networks:
+  production:
+    external: true
