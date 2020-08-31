@@ -7,25 +7,44 @@ services:
     ports:
       - '80:80'
       - '443:443'
-    networks:
-      - production
     restart: always
+    networks:
+      - mc-network
     environment:
       STAGE: 'production'
       DOMAINS: ${DOMAINS}
+      ERROR_LOG: stderr
+      ACCESS_LOG: stdout
+      CLIENT_MAX_BODY_SIZE: 0
+      WEBSOCKET: "true"
+      LISTEN_IPV6: "true"
     volumes:
-    - ./certs:/var/lib/https-portal
+      - ./certs:/var/lib/https-portal
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.{{.Name}}
+    depends_on:
+      - fluentd
 
   nginx:
     build: ./nginx
     container_name: www
     ports:
       - '8080:80'
-    networks:
-      - production
     restart: always
+    networks:
+      - mc-network
     volumes:
       - ./nginx/www:/usr/share/nginx/html
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.{{.Name}}
+    depends_on:
+      - fluentd
 
   mineos:
     build: ./minecraft/mineos
@@ -33,16 +52,44 @@ services:
     ports:
       - '8443:8443'
       - '25565-25570:25565-25570'
-    networks:
-      - production
+      - '25575-25580:25575-25580'
     restart: always
+    networks:
+      - mc-network
     environment:
       USER_NAME: ${USERNAME}
       USER_PASSWORD: ${USERPASSWORD}
       TZ: Asia/Tokyo
     volumes:
       - ./minecraft/games:/var/games/minecraft
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.{{.Name}}
+    depends_on:
+      - fluentd
+
+  fluentd:
+    image: fluent/fluentd
+    container_name: fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    restart: always
+    networks:
+      - mc-network
+    environment:
+      TZ: Asia/Tokyo
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+      - ./fluentd/log:/fluentd/log
+      - ${MC_LOG}:/mclog
+    logging:
+      driver: journald
+      options:
+        tag: docker.{{.Name}}
 
 networks:
-  production:
+  mc-network:
     external: true
